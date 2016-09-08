@@ -6,17 +6,34 @@
 static const int led_pin  = 13;
 static const int trig_pin = 5;
 static const int echo_pin = 4;
-static const int ping_trigger_length = 10000;
+static const uint16 ping_trigger_length = 10;
+static const float us_to_cm = (1.0 / 58.0);
 
 static volatile os_timer_t blink_timer;
 
+LOCAL void echo_handler(int *opaque);
+
 static void trigger(void)
 {
+    float ctr = 0;    
     os_printf("Trigger\n");    
     // set high, wait 10 ms, the set low again
     gpio_output_set((1 << trig_pin), 0, 0, 0);
     os_delay_us(ping_trigger_length);
     gpio_output_set(0, (1 << trig_pin), 0, 0);
+    
+    while((GPIO_REG_READ(GPIO_IN_ADDRESS) & (1 << echo_pin)) == 0)
+    {
+        os_delay_us(1);
+    }
+
+    while(GPIO_REG_READ(GPIO_IN_ADDRESS) & (1 << echo_pin))
+    {
+        os_delay_us(1);
+        ctr++;
+    }
+
+    os_printf("Distance %d cm\n",(int) (ctr * us_to_cm));    
 }
 
 void timerfunc(void *arg)
@@ -25,25 +42,22 @@ void timerfunc(void *arg)
     if (GPIO_REG_READ(GPIO_OUT_ADDRESS) & (1 << led_pin))
     {
       // set low
-      os_printf("Set low\n");
       gpio_output_set(0, (1 << led_pin), 0, 0);
     }
     else
     {
       // set high
-      os_printf("Set high\n");
       gpio_output_set((1 << led_pin), 0, 0, 0);
     }
 
     trigger();
 }
 
-static void echo_handler(uint32 mask, void *arg) 
+LOCAL void echo_handler(int *opaque) 
 {
     os_printf("Echo received\n");     
-    uint32 gpio_status = GPIO_REG_READ(GPIO_STATUS_ADDRESS);
-    os_printf("status: 0x%x\n", gpio_status);
-    gpio_intr_ack(mask);
+    //uint32 gpio_status = GPIO_REG_READ(GPIO_STATUS_ADDRESS);
+    //os_printf("status: 0x%x\n", gpio_status);
 }
 
 void ICACHE_FLASH_ATTR setup_gpios(void)
@@ -54,14 +68,14 @@ void ICACHE_FLASH_ATTR setup_gpios(void)
     // Configure GPIO pins
     PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTCK_U, FUNC_GPIO13);
   
-    gpio_output_set(0, 0, (1 << led_pin) | (1 << trig_pin),(1 << echo_pin));        
+    gpio_output_set(0, (1 << trig_pin), (1 << led_pin) | (1 << trig_pin),(1 << echo_pin));        
 }
 
 void ICACHE_FLASH_ATTR setup_interrupts(void)
 {
     os_printf("Setup interrupts\n");    
-    gpio_intr_handler_register(echo_handler,NULL);
-    gpio_pin_intr_state_set(GPIO_ID_PIN(echo_pin), GPIO_PIN_INTR_POSEDGE);
+    //gpio_intr_handler_register(echo_handler,NULL);
+    //gpio_pin_intr_state_set(GPIO_ID_PIN(echo_pin), GPIO_PIN_INTR_POSEDGE);
 }
 
 void ICACHE_FLASH_ATTR user_init()
@@ -76,5 +90,5 @@ void ICACHE_FLASH_ATTR user_init()
     
     // setup timer (500ms, repeating)
     os_timer_setfn(&blink_timer, (os_timer_func_t *)timerfunc, NULL);
-    os_timer_arm(&blink_timer, 500, 1);
+    os_timer_arm(&blink_timer, 1000, 1);
 }

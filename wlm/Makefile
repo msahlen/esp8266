@@ -6,9 +6,8 @@ LDFLAGS = -Teagle.app.v6.ld
 wlm-0x00000.bin:wlm
 	esptool.py elf2image $^
 
-wlm: wlm.o
-
-wlm.o: wlm.c
+wlm: wlm.o \
+     hc_04.o
 
 flash: wlm-0x00000.bin
 	esptool.py --port /dev/ttyUSB1 write_flash 0 wlm-0x00000.bin 0x40000 wlm-0x40000.bin
